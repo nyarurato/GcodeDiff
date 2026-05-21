@@ -37,28 +37,35 @@ function setStatus(text: string): void {
 /**
  * 現在の srcA / srcB をパース・diff して描画を更新する。
  */
-function replot(): void {
-  const segsA = srcA ? parseGCode(srcA) : []
-  const segsB = srcB ? parseGCode(srcB) : []
+async function replot(): Promise<void> {
+  setStatus('解析中…')
+  try {
+    const [segsA, segsB] = await Promise.all([
+      srcA ? parseGCode(srcA) : Promise.resolve([]),
+      srcB ? parseGCode(srcB) : Promise.resolve([]),
+    ])
 
-  if (segsA.length === 0 && segsB.length === 0) {
-    scene.clearAll()
-    setStatus('GCode A/B を入力して Plot ボタンを押してください')
-    return
+    if (segsA.length === 0 && segsB.length === 0) {
+      scene.clearAll()
+      setStatus('GCode A/B を入力して Plot ボタンを押してください')
+      return
+    }
+
+    const { a, b, stats } = diffSegments(segsA, segsB)
+
+    scene.updateA(a)
+    scene.updateB(b)
+
+    const parts: string[] = []
+    if (segsA.length > 0) parts.push(`A: ${segsA.length} moves`)
+    if (segsB.length > 0) parts.push(`B: ${segsB.length} moves`)
+    if (segsA.length > 0 && segsB.length > 0) {
+      parts.push(`共通: ${stats.common}  A のみ: ${stats.onlyA}  B のみ: ${stats.onlyB}`)
+    }
+    setStatus(parts.join('   │   '))
+  } catch (err) {
+    setStatus(`エラー: ${err instanceof Error ? err.message : String(err)}`)
   }
-
-  const { a, b, stats } = diffSegments(segsA, segsB)
-
-  scene.updateA(a)
-  scene.updateB(b)
-
-  const parts: string[] = []
-  if (segsA.length > 0) parts.push(`A: ${segsA.length} moves`)
-  if (segsB.length > 0) parts.push(`B: ${segsB.length} moves`)
-  if (segsA.length > 0 && segsB.length > 0) {
-    parts.push(`共通: ${stats.common}  A のみ: ${stats.onlyA}  B のみ: ${stats.onlyB}`)
-  }
-  setStatus(parts.join('   │   '))
 }
 
 // ─── Plot A ───────────────────────────────────────────────────────────────
@@ -70,7 +77,7 @@ document.getElementById('plot-a')?.addEventListener('click', () => {
     setStatus('GCode A が空です')
     return
   }
-  replot()
+  void replot()
 })
 
 // ─── Plot B ───────────────────────────────────────────────────────────────
@@ -82,7 +89,7 @@ document.getElementById('plot-b')?.addEventListener('click', () => {
     setStatus('GCode B が空です')
     return
   }
-  replot()
+  void replot()
 })
 
 // ─── Clear A ──────────────────────────────────────────────────────────────
@@ -91,7 +98,7 @@ document.getElementById('clear-a')?.addEventListener('click', () => {
   const ta = document.getElementById('gcode-a') as HTMLTextAreaElement
   ta.value = ''
   srcA = ''
-  replot()
+  void replot()
 })
 
 // ─── Clear B ──────────────────────────────────────────────────────────────
@@ -100,5 +107,5 @@ document.getElementById('clear-b')?.addEventListener('click', () => {
   const ta = document.getElementById('gcode-b') as HTMLTextAreaElement
   ta.value = ''
   srcB = ''
-  replot()
+  void replot()
 })
