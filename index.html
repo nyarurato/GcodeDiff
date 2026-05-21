@@ -22,7 +22,7 @@
           <textarea
             id="gcode-a"
             spellcheck="false"
-            placeholder="GCode A をここに貼り付けてください…"
+            placeholder="Paste GCode A here…"
           ></textarea>
           <div class="panel-actions">
             <button class="btn btn-a" id="plot-a">▶ Plot A</button>
@@ -42,7 +42,7 @@
           <textarea
             id="gcode-b"
             spellcheck="false"
-            placeholder="GCode B をここに貼り付けてください…"
+            placeholder="Paste GCode B here…"
           ></textarea>
           <div class="panel-actions">
             <button class="btn btn-b" id="plot-b">▶ Plot B</button>
@@ -55,22 +55,22 @@
     <!-- 凡例 -->
     <div id="legend">
       <div class="legend-item">
-        <span class="legend-dot" style="background:#00e676"></span>共通
+        <span class="legend-dot" style="background:#00e676"></span>Common
       </div>
       <div class="legend-item">
-        <span class="legend-dot" style="background:#448aff"></span>A のみ
+        <span class="legend-dot" style="background:#448aff"></span>Only A
       </div>
       <div class="legend-item">
-        <span class="legend-dot" style="background:#ff5252"></span>B のみ
+        <span class="legend-dot" style="background:#ff5252"></span>Only B
       </div>
       <div class="legend-item" style="opacity:0.5">
-        <span class="legend-dot" style="background:#555"></span>早送り
+        <span class="legend-dot" style="background:#555"></span>Rapid
       </div>
     </div>
 
     <!-- ステータスバー -->
     <div id="statusbar">
-      <span id="status-text">GCode A/B を入力して Plot ボタンを押してください</span>
+      <span id="status-text">Paste GCode into A and/or B, then click Plot</span>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

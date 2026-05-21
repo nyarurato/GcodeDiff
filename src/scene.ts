@@ -76,8 +76,15 @@ export class SceneManager {
     const grid = new THREE.GridHelper(500, 50, 0x1a1c2a, 0x14151f)
     this.scene.add(grid)
 
-    // 軸ヘルパー
+    // 軸ヘルパー: グリッドと重なって見づらいので depthTest を切って常に前面に描画
     const axes = new THREE.AxesHelper(30)
+    axes.renderOrder = 1
+    // AxesHelper の内部マテリアル (LineBasicMaterial) に depthTest=false を適用
+    if (axes.material instanceof THREE.Material) {
+      axes.material.depthTest = false
+    } else if (Array.isArray(axes.material)) {
+      axes.material.forEach((m) => { m.depthTest = false })
+    }
     this.scene.add(axes)
 
     // データグループ

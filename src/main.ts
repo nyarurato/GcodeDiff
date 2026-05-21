@@ -38,7 +38,7 @@ function setStatus(text: string): void {
  * 現在の srcA / srcB をパース・diff して描画を更新する。
  */
 async function replot(): Promise<void> {
-  setStatus('解析中…')
+  setStatus('Parsing…')
   try {
     const [segsA, segsB] = await Promise.all([
       srcA ? parseGCode(srcA) : Promise.resolve([]),
@@ -47,7 +47,7 @@ async function replot(): Promise<void> {
 
     if (segsA.length === 0 && segsB.length === 0) {
       scene.clearAll()
-      setStatus('GCode A/B を入力して Plot ボタンを押してください')
+      setStatus('Paste GCode into A and/or B, then click Plot')
       return
     }
 
@@ -60,11 +60,11 @@ async function replot(): Promise<void> {
     if (segsA.length > 0) parts.push(`A: ${segsA.length} moves`)
     if (segsB.length > 0) parts.push(`B: ${segsB.length} moves`)
     if (segsA.length > 0 && segsB.length > 0) {
-      parts.push(`共通: ${stats.common}  A のみ: ${stats.onlyA}  B のみ: ${stats.onlyB}`)
+      parts.push(`Common: ${stats.common}  Only A: ${stats.onlyA}  Only B: ${stats.onlyB}`)
     }
     setStatus(parts.join('   │   '))
   } catch (err) {
-    setStatus(`エラー: ${err instanceof Error ? err.message : String(err)}`)
+    setStatus(`Error: ${err instanceof Error ? err.message : String(err)}`)
   }
 }
 
@@ -74,7 +74,7 @@ document.getElementById('plot-a')?.addEventListener('click', () => {
   const ta = document.getElementById('gcode-a') as HTMLTextAreaElement
   srcA = ta.value.trim()
   if (!srcA) {
-    setStatus('GCode A が空です')
+    setStatus('GCode A is empty')
     return
   }
   void replot()
@@ -86,7 +86,7 @@ document.getElementById('plot-b')?.addEventListener('click', () => {
   const ta = document.getElementById('gcode-b') as HTMLTextAreaElement
   srcB = ta.value.trim()
   if (!srcB) {
-    setStatus('GCode B が空です')
+    setStatus('GCode B is empty')
     return
   }
   void replot()
