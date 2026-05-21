@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GCode Diff 3D</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+
+    <!-- 左側パネル -->
+    <div id="panels">
+      <!-- GCode A -->
+      <div class="panel" id="panel-a">
+        <div class="panel-header" data-target="panel-a">
+          <span class="panel-icon">▶</span>
+          <span class="panel-title">GCode A</span>
+          <span class="color-badge badge-a">A</span>
+        </div>
+        <div class="panel-body">
+          <textarea
+            id="gcode-a"
+            spellcheck="false"
+            placeholder="GCode A をここに貼り付けてください…"
+          ></textarea>
+          <div class="panel-actions">
+            <button class="btn btn-a" id="plot-a">▶ Plot A</button>
+            <button class="btn btn-clear" id="clear-a">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- GCode B -->
+      <div class="panel" id="panel-b">
+        <div class="panel-header" data-target="panel-b">
+          <span class="panel-icon">▶</span>
+          <span class="panel-title">GCode B</span>
+          <span class="color-badge badge-b">B</span>
+        </div>
+        <div class="panel-body">
+          <textarea
+            id="gcode-b"
+            spellcheck="false"
+            placeholder="GCode B をここに貼り付けてください…"
+          ></textarea>
+          <div class="panel-actions">
+            <button class="btn btn-b" id="plot-b">▶ Plot B</button>
+            <button class="btn btn-clear" id="clear-b">✕</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 凡例 -->
+    <div id="legend">
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#00e676"></span>共通
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#448aff"></span>A のみ
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#ff5252"></span>B のみ
+      </div>
+      <div class="legend-item" style="opacity:0.5">
+        <span class="legend-dot" style="background:#555"></span>早送り
+      </div>
+    </div>
+
+    <!-- ステータスバー -->
+    <div id="statusbar">
+      <span id="status-text">GCode A/B を入力して Plot ボタンを押してください</span>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
