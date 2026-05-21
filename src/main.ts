@@ -109,3 +109,59 @@ document.getElementById('clear-b')?.addEventListener('click', () => {
   srcB = ''
   void replot()
 })
+
+// ─── Drag & Drop ──────────────────────────────────────────────────────────
+
+/**
+ * パネルボディへのファイルドロップでテキストを読み込み、即 Plot する。
+ * @param panelBodyId  ドロップ対象要素の id
+ * @param textareaId   テキストを書き込む textarea の id
+ * @param setter       srcA / srcB を更新するコールバック
+ */
+function setupDrop(
+  panelBodyId: string,
+  textareaId: string,
+  setter: (text: string) => void,
+): void {
+  const zone = document.getElementById(panelBodyId)
+  const ta = document.getElementById(textareaId) as HTMLTextAreaElement | null
+  if (!zone || !ta) return
+
+  zone.addEventListener('dragenter', (e) => {
+    e.preventDefault()
+    zone.classList.add('drag-over')
+  })
+
+  zone.addEventListener('dragover', (e) => {
+    e.preventDefault()
+    // ファイルのみ受け付ける
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+  })
+
+  zone.addEventListener('dragleave', (e) => {
+    // zone の外に出たときだけ解除（子要素への移動では解除しない）
+    if (!zone.contains(e.relatedTarget as Node | null)) {
+      zone.classList.remove('drag-over')
+    }
+  })
+
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault()
+    zone.classList.remove('drag-over')
+
+    const file = e.dataTransfer?.files[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const text = (reader.result as string).trim()
+      ta.value = text
+      setter(text)
+      void replot()
+    }
+    reader.readAsText(file)
+  })
+}
+
+setupDrop('panel-body-a', 'gcode-a', (t) => { srcA = t })
+setupDrop('panel-body-b', 'gcode-b', (t) => { srcB = t })

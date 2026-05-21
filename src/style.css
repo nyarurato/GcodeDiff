@@ -251,3 +251,31 @@ textarea:focus {
   font-size: 11px;
   color: var(--text-dim);
 }
+
+/* ─── Drag & Drop ────────────────────────────────────── */
+.panel-body {
+  position: relative;
+}
+
+.panel-body.drag-over::after {
+  content: 'Drop GCode file here';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(68, 138, 255, 0.12);
+  border: 2px dashed rgba(68, 138, 255, 0.6);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-a);
+  pointer-events: none;
+  z-index: 20;
+}
+
+#panel-body-b.drag-over::after {
+  background: rgba(255, 82, 82, 0.12);
+  border-color: rgba(255, 82, 82, 0.6);
+  color: var(--color-b);
+}
