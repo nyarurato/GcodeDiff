@@ -22,7 +22,7 @@ npm run preview # preview the production build
 |---|---|
 | [Three.js](https://threejs.org/) | 3D rendering |
 | [Vite](https://vitejs.dev/) | Build tool & dev server |
-| TypeScript | Type safety |
+| [gcode-toolpath](https://github.com/cncjs/gcode-toolpath) | gcode parser |
 
 ## License
 
