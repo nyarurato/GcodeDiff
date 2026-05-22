@@ -37,6 +37,32 @@ body {
   display: block;
 }
 
+/* ─── GitHub リンク ──────────────────────────────────── */
+#github-link {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  backdrop-filter: blur(12px);
+  text-decoration: none;
+  transition: color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+#github-link:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
 /* ─── 左側パネル群 ───────────────────────────────────── */
 #panels {
   position: fixed;
