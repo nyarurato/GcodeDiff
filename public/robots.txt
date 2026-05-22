@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://nyarurato.github.io/GcodeDiff/sitemap.xml
