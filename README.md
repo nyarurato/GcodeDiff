@@ -2,6 +2,9 @@
 
 A web app that visualizes the diff between two GCode files in 3D space.
 
+# Demo
+https://nyarurato.github.io/GcodeDiff/
+
 ## Getting Started
 
 ```bash

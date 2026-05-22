@@ -279,3 +279,176 @@ textarea:focus {
   border-color: rgba(255, 82, 82, 0.6);
   color: var(--color-b);
 }
+
+/* ─── Settings パネル（右下固定） ─────────────────────── */
+#panel-settings {
+  position: fixed;
+  bottom: 60px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column-reverse; /* ボディが上方向に開く */
+}
+
+/* 上に開くのでセパレーターは border-top に */
+#panel-settings > .panel-header {
+  border-bottom: none;
+  border-top: 1px solid transparent;
+  transition: background 0.15s, border-color 0.2s;
+}
+
+#panel-settings.open > .panel-header {
+  border-top-color: var(--panel-border);
+}
+
+/* ─── Settings badge ─────────────────────────────────── */
+.badge-settings {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+  border: 1px solid var(--panel-border);
+}
+
+/* ─── Setting rows ───────────────────────────────────── */
+.setting-divider {
+  height: 1px;
+  background: var(--panel-border);
+  margin: 6px 0;
+}
+
+.setting-group-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.setting-label {
+  font-size: 12px;
+  color: var(--text);
+  cursor: default;
+  flex: 1;
+}
+
+/* ─── Toggle switch ──────────────────────────────────── */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--color-a);
+}
+
+/* A/B トグルの色を凡例カラーに合わせる */
+#toggle-a:checked + .toggle-slider-a {
+  background: var(--color-a);
+}
+
+#toggle-b:checked + .toggle-slider-b {
+  background: var(--color-b);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(16px);
+}
+
+/* ─── Color input ────────────────────────────────────── */
+.color-input {
+  width: 32px;
+  height: 24px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 2px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+/* ─── Light theme ────────────────────────────────────── */
+[data-theme='light'] {
+  --panel-bg: rgba(240, 242, 250, 0.92);
+  --panel-border: rgba(0, 0, 0, 0.1);
+  --text: #1a1c2a;
+  --text-dim: #6b6f85;
+}
+
+[data-theme='light'] body {
+  background: #eceff5;
+}
+
+[data-theme='light'] textarea {
+  background: rgba(255, 255, 255, 0.65);
+  color: #1a1c2a;
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme='light'] textarea::placeholder {
+  color: #9a9fb8;
+}
+
+[data-theme='light'] #statusbar {
+  background: rgba(220, 224, 238, 0.9);
+  border-top-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='light'] .toggle-slider {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme='light'] .toggle-slider::before {
+  background: #fff;
+}
+
+[data-theme='light'] #legend {
+  background: rgba(240, 242, 250, 0.92);
+}

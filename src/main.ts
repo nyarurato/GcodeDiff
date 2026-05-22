@@ -2,6 +2,7 @@ import './style.css'
 import { parseGCode } from './gcodeParser'
 import { diffSegments } from './diffEngine'
 import { SceneManager } from './scene'
+import type { ColorConfig } from './scene'
 
 // ─── シーン初期化 ─────────────────────────────────────────────────────────
 
@@ -165,3 +166,48 @@ function setupDrop(
 
 setupDrop('panel-body-a', 'gcode-a', (t) => { srcA = t })
 setupDrop('panel-body-b', 'gcode-b', (t) => { srcB = t })
+
+// ─── Settings: Dark Mode ──────────────────────────────────────────────────
+
+const darkToggle = document.getElementById('toggle-dark') as HTMLInputElement
+darkToggle.addEventListener('change', () => {
+  const isDark = darkToggle.checked
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
+  scene.setTheme(isDark)
+})
+
+// ─── Settings: A/B Visibility ─────────────────────────────────────────────
+
+;(document.getElementById('toggle-a') as HTMLInputElement).addEventListener('change', (e) => {
+  scene.setVisibleA((e.target as HTMLInputElement).checked)
+})
+
+;(document.getElementById('toggle-b') as HTMLInputElement).addEventListener('change', (e) => {
+  scene.setVisibleB((e.target as HTMLInputElement).checked)
+})
+
+// ─── Settings: Color Pickers ──────────────────────────────────────────────
+
+function hexStrToInt(hex: string): number {
+  return parseInt(hex.replace('#', ''), 16)
+}
+
+const COLOR_INPUTS: Array<{
+  inputId: string
+  dotId: string
+  key: keyof ColorConfig
+}> = [
+  { inputId: 'color-common',  dotId: 'legend-common',  key: 'common' },
+  { inputId: 'color-only-a',  dotId: 'legend-only-a',  key: 'onlyA' },
+  { inputId: 'color-only-b',  dotId: 'legend-only-b',  key: 'onlyB' },
+  { inputId: 'color-rapid',   dotId: 'legend-rapid',   key: 'rapid' },
+]
+
+COLOR_INPUTS.forEach(({ inputId, dotId, key }) => {
+  document.getElementById(inputId)?.addEventListener('input', (e) => {
+    const hex = (e.target as HTMLInputElement).value
+    scene.setColors({ [key]: hexStrToInt(hex) } as Partial<ColorConfig>)
+    const dot = document.getElementById(dotId)
+    if (dot) dot.style.background = hex
+  })
+})
