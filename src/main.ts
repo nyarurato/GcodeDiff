@@ -1,6 +1,7 @@
 import './style.css'
 import { parseGCode } from './gcodeParser'
 import { diffSegments } from './diffEngine'
+import type { ClassifiedSegment } from './diffEngine'
 import { SceneManager } from './scene'
 import type { ColorConfig } from './scene'
 
@@ -13,6 +14,8 @@ const scene = new SceneManager(canvas)
 
 let srcA = ''
 let srcB = ''
+let classifiedA: ClassifiedSegment[] = []
+let classifiedB: ClassifiedSegment[] = []
 
 // ─── パネルの開閉 ─────────────────────────────────────────────────────────
 
@@ -47,12 +50,16 @@ async function replot(): Promise<void> {
     ])
 
     if (segsA.length === 0 && segsB.length === 0) {
+      classifiedA = []
+      classifiedB = []
       scene.clearAll()
       setStatus('Paste GCode into A and/or B, then click Plot')
       return
     }
 
     const { a, b, stats } = diffSegments(segsA, segsB)
+    classifiedA = a
+    classifiedB = b
 
     scene.updateA(a)
     scene.updateB(b)
@@ -210,4 +217,45 @@ COLOR_INPUTS.forEach(({ inputId, dotId, key }) => {
     const dot = document.getElementById(dotId)
     if (dot) dot.style.background = hex
   })
+})
+
+// ─── Cursor Tracking: 3D マーカー ──────────────────────────────────────────
+
+const taA = document.getElementById('gcode-a') as HTMLTextAreaElement
+const taB = document.getElementById('gcode-b') as HTMLTextAreaElement
+
+/** textarea のカーソルが居る行番号（0 始まり）を返す */
+function getLineNum(ta: HTMLTextAreaElement): number {
+  return ta.value.substring(0, ta.selectionStart).split('\n').length - 1
+}
+
+/** lineNum 以前の最後のセグメントの終点にマーカーを移動 */
+function updateCursorMarker(segs: ClassifiedSegment[], lineNum: number): void {
+  let found: ClassifiedSegment | null = null
+  for (const cs of segs) {
+    if (cs.segment.lineIndex <= lineNum) found = cs
+  }
+  scene.showCursorMarker(found ? found.segment.to : null)
+}
+
+document.addEventListener('selectionchange', () => {
+  const active = document.activeElement
+  if (active === taA && classifiedA.length > 0) {
+    updateCursorMarker(classifiedA, getLineNum(taA))
+  } else if (active === taB && classifiedB.length > 0) {
+    updateCursorMarker(classifiedB, getLineNum(taB))
+  }
+})
+
+taA.addEventListener('blur', () => { scene.showCursorMarker(null) })
+taB.addEventListener('blur', () => { scene.showCursorMarker(null) })
+
+// ─── Settings: Cursor Marker ──────────────────────────────────────────
+
+;(document.getElementById('marker-size') as HTMLInputElement).addEventListener('input', (e) => {
+  scene.setMarkerConfig(Number((e.target as HTMLInputElement).value))
+})
+
+;(document.getElementById('marker-color') as HTMLInputElement).addEventListener('input', (e) => {
+  scene.setMarkerConfig(undefined, hexStrToInt((e.target as HTMLInputElement).value))
 })

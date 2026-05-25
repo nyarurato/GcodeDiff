@@ -80,6 +80,9 @@ export class SceneManager {
   private lastB: ClassifiedSegment[] = []
 
   private animId = 0
+  private cursorMarker: THREE.Object3D | null = null
+  private markerSize: number = 2
+  private markerColor: number = 0xffffff
 
   constructor(canvas: HTMLCanvasElement) {
     // ── レンダラー
@@ -132,6 +135,11 @@ export class SceneManager {
   private readonly animate = (): void => {
     this.animId = requestAnimationFrame(this.animate)
     this.controls.update()
+    // カーソルマーカーをカメラ距離に比例したサイズに更新
+    if (this.cursorMarker) {
+      const dist = this.camera.position.distanceTo(this.cursorMarker.position)
+      this.cursorMarker.scale.setScalar(Math.max(0.2, dist * this.markerSize * 0.004))
+    }
     this.renderer.render(this.scene, this.camera)
   }
 
@@ -170,6 +178,45 @@ export class SceneManager {
   /** B グループの表示/非表示 */
   setVisibleB(visible: boolean): void {
     this.groupB.visible = visible
+  }
+
+  /**
+   * カーソル位置の 3D マーカーを表示。pos=null で非表示。
+   * 常に最前面にレンダリングされるピクセル定サイズの白点。
+   */
+  showCursorMarker(pos: readonly [number, number, number] | null): void {
+    if (this.cursorMarker) {
+      this.scene.remove(this.cursorMarker)
+      const mesh = this.cursorMarker as THREE.Mesh
+      mesh.geometry.dispose()
+      ;(mesh.material as THREE.Material).dispose()
+      this.cursorMarker = null
+    }
+    if (!pos) return
+
+    const tp = gToT(pos[0], pos[1], pos[2])
+    const geo = new THREE.SphereGeometry(1, 10, 6)
+    const mat = new THREE.MeshBasicMaterial({
+      color: this.markerColor,
+      depthTest: false,
+    })
+    const mesh = new THREE.Mesh(geo, mat)
+    mesh.position.copy(tp)
+    mesh.renderOrder = 2
+    this.cursorMarker = mesh
+    this.scene.add(this.cursorMarker)
+  }
+
+  /** カーソルマーカーのサイズ(1-10)と色を更新 */
+  setMarkerConfig(size?: number, color?: number): void {
+    if (size !== undefined) this.markerSize = size
+    if (color !== undefined) {
+      this.markerColor = color
+      if (this.cursorMarker) {
+        const mat = (this.cursorMarker as THREE.Mesh).material as THREE.MeshBasicMaterial
+        mat.color.setHex(color)
+      }
+    }
   }
 
   /** 凡例カラーを部分更新して即再描画 */

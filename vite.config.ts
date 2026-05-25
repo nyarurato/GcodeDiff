@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [
     // gcode-toolpath/gcode-parser が依存する Node.js built-in を polyfill
     nodePolyfills({
-      include: ['events', 'stream', 'timers', 'buffer'],
+      include: ['events', 'stream', 'timers', 'buffer', 'util'],
       globals: { process: true, Buffer: true },
     }),
   ],

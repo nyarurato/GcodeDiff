@@ -21,6 +21,8 @@ export interface Segment {
    * 円弧は全補間セグメントが同一キーを持つ（論理単位で diff 比較）。
    */
   key: string
+  /** ソース GCode の行インデックス (0 始まり)。未検出時は -1 */
+  lineIndex: number
 }
 
 // ─── 円弧補間 ─────────────────────────────────────────────────────────────
@@ -95,6 +97,36 @@ function fv(v: Vec3): string {
   return `${v.x.toFixed(3)},${v.y.toFixed(3)},${v.z.toFixed(3)}`
 }
 
+// ─── モーション行マップ ─────────────────────────────────────────────────────
+
+/**
+ * G0/G1/G2/G3 が実行されるソース行のインデックス配列を返す。
+ * モーダル移動（G ワードなしで X/Y/Z 座標のみの行）も検出。
+ */
+function buildMotionLineMap(src: string): number[] {
+  const lines = src.split(/\r?\n/)
+  const result: number[] = []
+  let modalMotion = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const stripped = lines[i]
+      .replace(/;.*$/, '')
+      .replace(/\([^)]*\)/g, '')
+      .toUpperCase()
+      .trim()
+    if (!stripped) continue
+
+    if (/\bG(0?[0-3])\b/.test(stripped)) {
+      modalMotion = true
+      result.push(i)
+    } else if (modalMotion && /[XYZ]-?[\d.]/.test(stripped)) {
+      // モーダル: G ワードなしの座標行
+      result.push(i)
+    }
+  }
+  return result
+}
+
 // ─── エクスポート ─────────────────────────────────────────────────────────
 
 /**
@@ -102,20 +134,26 @@ function fv(v: Vec3): string {
  * @param src GCode 文字列
  */
 export function parseGCode(src: string): Promise<Segment[]> {
+  const motionLines = buildMotionLineMap(src)
+  let motionIdx = 0
+
   return new Promise((resolve, reject) => {
     const segs: Segment[] = []
 
     const tp = new Toolpath({
       addLine(modal: GCodeModal, v1: Vec3, v2: Vec3) {
+        const lineIndex = motionLines[motionIdx++] ?? -1
         segs.push({
           from: [v1.x, v1.y, v1.z],
           to: [v2.x, v2.y, v2.z],
           isRapid: modal.motion === 'G0',
           key: `${modal.motion}:${fv(v1)}->${fv(v2)}`,
+          lineIndex,
         })
       },
 
       addArcCurve(modal: GCodeModal, v1: Vec3, v2: Vec3, v0: Vec3) {
+        const lineIndex = motionLines[motionIdx++] ?? -1
         const cw = modal.motion === 'G2'
         const plane = (modal.plane ?? 'G17') as ArcPlane
         // 円弧全体を 1 つのキーで表現 → 全補間セグメントが同一キーを共有
@@ -126,6 +164,7 @@ export function parseGCode(src: string): Promise<Segment[]> {
             to: [p2.x, p2.y, p2.z],
             isRapid: false,
             key,
+            lineIndex,
           })
         }
       },

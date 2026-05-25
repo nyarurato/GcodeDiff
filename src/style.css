@@ -419,6 +419,14 @@ textarea:focus {
   transform: translateX(16px);
 }
 
+/* ─── Range input ────────────────────────────────────── */
+.range-input {
+  flex: 1;
+  accent-color: var(--text);
+  cursor: pointer;
+  max-width: 90px;
+}
+
 /* ─── Color input ────────────────────────────────────── */
 .color-input {
   width: 32px;
