@@ -17,6 +17,10 @@ let srcB = ''
 let classifiedA: ClassifiedSegment[] = []
 let classifiedB: ClassifiedSegment[] = []
 
+function getById<T extends HTMLElement>(id: string): T | null {
+  return document.getElementById(id) as T | null
+}
+
 // ─── パネルの開閉 ─────────────────────────────────────────────────────────
 
 document.querySelectorAll<HTMLElement>('.panel-header').forEach((header) => {
@@ -76,47 +80,35 @@ async function replot(): Promise<void> {
   }
 }
 
-// ─── Plot A ───────────────────────────────────────────────────────────────
+function setupPlotAndClear(
+  plotButtonId: string,
+  clearButtonId: string,
+  textareaId: string,
+  emptyMessage: string,
+  setSrc: (text: string) => void,
+): void {
+  const ta = getById<HTMLTextAreaElement>(textareaId)
+  if (!ta) return
 
-document.getElementById('plot-a')?.addEventListener('click', () => {
-  const ta = document.getElementById('gcode-a') as HTMLTextAreaElement
-  srcA = ta.value.trim()
-  if (!srcA) {
-    setStatus('GCode A is empty')
-    return
-  }
-  void replot()
-})
+  getById<HTMLButtonElement>(plotButtonId)?.addEventListener('click', () => {
+    const text = ta.value.trim()
+    setSrc(text)
+    if (!text) {
+      setStatus(emptyMessage)
+      return
+    }
+    void replot()
+  })
 
-// ─── Plot B ───────────────────────────────────────────────────────────────
+  getById<HTMLButtonElement>(clearButtonId)?.addEventListener('click', () => {
+    ta.value = ''
+    setSrc('')
+    void replot()
+  })
+}
 
-document.getElementById('plot-b')?.addEventListener('click', () => {
-  const ta = document.getElementById('gcode-b') as HTMLTextAreaElement
-  srcB = ta.value.trim()
-  if (!srcB) {
-    setStatus('GCode B is empty')
-    return
-  }
-  void replot()
-})
-
-// ─── Clear A ──────────────────────────────────────────────────────────────
-
-document.getElementById('clear-a')?.addEventListener('click', () => {
-  const ta = document.getElementById('gcode-a') as HTMLTextAreaElement
-  ta.value = ''
-  srcA = ''
-  void replot()
-})
-
-// ─── Clear B ──────────────────────────────────────────────────────────────
-
-document.getElementById('clear-b')?.addEventListener('click', () => {
-  const ta = document.getElementById('gcode-b') as HTMLTextAreaElement
-  ta.value = ''
-  srcB = ''
-  void replot()
-})
+setupPlotAndClear('plot-a', 'clear-a', 'gcode-a', 'GCode A is empty', (t) => { srcA = t })
+setupPlotAndClear('plot-b', 'clear-b', 'gcode-b', 'GCode B is empty', (t) => { srcB = t })
 
 // ─── Drag & Drop ──────────────────────────────────────────────────────────
 
@@ -176,22 +168,24 @@ setupDrop('panel-body-b', 'gcode-b', (t) => { srcB = t })
 
 // ─── Settings: Dark Mode ──────────────────────────────────────────────────
 
-const darkToggle = document.getElementById('toggle-dark') as HTMLInputElement
-darkToggle.addEventListener('change', () => {
-  const isDark = darkToggle.checked
+const darkToggle = getById<HTMLInputElement>('toggle-dark')
+darkToggle?.addEventListener('change', () => {
+  const isDark = !!darkToggle.checked
   document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
   scene.setTheme(isDark)
 })
 
 // ─── Settings: A/B Visibility ─────────────────────────────────────────────
 
-;(document.getElementById('toggle-a') as HTMLInputElement).addEventListener('change', (e) => {
-  scene.setVisibleA((e.target as HTMLInputElement).checked)
-})
+function bindToggle(id: string, onChange: (checked: boolean) => void): void {
+  const input = getById<HTMLInputElement>(id)
+  input?.addEventListener('change', () => {
+    onChange(input.checked)
+  })
+}
 
-;(document.getElementById('toggle-b') as HTMLInputElement).addEventListener('change', (e) => {
-  scene.setVisibleB((e.target as HTMLInputElement).checked)
-})
+bindToggle('toggle-a', (checked) => { scene.setVisibleA(checked) })
+bindToggle('toggle-b', (checked) => { scene.setVisibleB(checked) })
 
 // ─── Settings: Color Pickers ──────────────────────────────────────────────
 
@@ -210,52 +204,67 @@ const COLOR_INPUTS: Array<{
   { inputId: 'color-rapid',   dotId: 'legend-rapid',   key: 'rapid' },
 ]
 
+function bindColorInput(inputId: string, onInput: (hex: string) => void): void {
+  const input = getById<HTMLInputElement>(inputId)
+  input?.addEventListener('input', () => {
+    onInput(input.value)
+  })
+}
+
 COLOR_INPUTS.forEach(({ inputId, dotId, key }) => {
-  document.getElementById(inputId)?.addEventListener('input', (e) => {
-    const hex = (e.target as HTMLInputElement).value
+  bindColorInput(inputId, (hex) => {
     scene.setColors({ [key]: hexStrToInt(hex) } as Partial<ColorConfig>)
-    const dot = document.getElementById(dotId)
+    const dot = getById<HTMLElement>(dotId)
     if (dot) dot.style.background = hex
   })
 })
 
 // ─── Cursor Tracking: 3D マーカー ──────────────────────────────────────────
 
-const taA = document.getElementById('gcode-a') as HTMLTextAreaElement
-const taB = document.getElementById('gcode-b') as HTMLTextAreaElement
+const taA = getById<HTMLTextAreaElement>('gcode-a')
+const taB = getById<HTMLTextAreaElement>('gcode-b')
 
 /** textarea のカーソルが居る行番号（0 始まり）を返す */
 function getLineNum(ta: HTMLTextAreaElement): number {
   return ta.value.substring(0, ta.selectionStart).split('\n').length - 1
 }
 
+function findLastSegmentAtOrBeforeLine(
+  segs: ClassifiedSegment[],
+  lineNum: number,
+): ClassifiedSegment | null {
+  for (let i = segs.length - 1; i >= 0; i--) {
+    const seg = segs[i]
+    if (seg.segment.lineIndex <= lineNum) return seg
+  }
+  return null
+}
+
 /** lineNum 以前の最後のセグメントの終点にマーカーを移動 */
 function updateCursorMarker(segs: ClassifiedSegment[], lineNum: number): void {
-  let found: ClassifiedSegment | null = null
-  for (const cs of segs) {
-    if (cs.segment.lineIndex <= lineNum) found = cs
-  }
+  const found = findLastSegmentAtOrBeforeLine(segs, lineNum)
   scene.showCursorMarker(found ? found.segment.to : null)
 }
 
 document.addEventListener('selectionchange', () => {
   const active = document.activeElement
-  if (active === taA && classifiedA.length > 0) {
+  if (taA && active === taA && classifiedA.length > 0) {
     updateCursorMarker(classifiedA, getLineNum(taA))
-  } else if (active === taB && classifiedB.length > 0) {
+  } else if (taB && active === taB && classifiedB.length > 0) {
     updateCursorMarker(classifiedB, getLineNum(taB))
   }
 })
 
-taA.addEventListener('blur', () => { scene.showCursorMarker(null) })
-taB.addEventListener('blur', () => { scene.showCursorMarker(null) })
+taA?.addEventListener('blur', () => { scene.showCursorMarker(null) })
+taB?.addEventListener('blur', () => { scene.showCursorMarker(null) })
 
 // ─── Settings: Cursor Marker ──────────────────────────────────────────
 
-;(document.getElementById('marker-size') as HTMLInputElement).addEventListener('input', (e) => {
-  scene.setMarkerConfig(Number((e.target as HTMLInputElement).value))
+bindColorInput('marker-color', (hex) => {
+  scene.setMarkerConfig(undefined, hexStrToInt(hex))
 })
 
-;(document.getElementById('marker-color') as HTMLInputElement).addEventListener('input', (e) => {
-  scene.setMarkerConfig(undefined, hexStrToInt((e.target as HTMLInputElement).value))
+const markerSizeInput = getById<HTMLInputElement>('marker-size')
+markerSizeInput?.addEventListener('input', () => {
+  scene.setMarkerConfig(Number(markerSizeInput.value))
 })
