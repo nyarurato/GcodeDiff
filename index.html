@@ -9,10 +9,48 @@
     <meta name="description" content="A browser-based tool to compare two GCode files and visualize their differences in 3D. Supports G0/G1/G2/G3 (arcs). No server required." />
     <meta name="keywords" content="GCode, diff, 3D, CNC, 3D printer, visualization, compare, G-code" />
     <link rel="canonical" href="https://nyarurato.github.io/GcodeDiff/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="GCode Diff 3D" />
+    <meta property="og:description" content="Compare two GCode files in your browser and visualize differences in 3D. Supports G0/G1/G2/G3 (arcs)." />
+    <meta property="og:url" content="https://nyarurato.github.io/GcodeDiff/" />
+    <meta property="og:site_name" content="GCode Diff 3D" />
+    <meta property="og:locale" content="ja_JP" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="GCode Diff 3D" />
+    <meta name="twitter:description" content="Compare two GCode files in your browser and visualize differences in 3D. Supports G0/G1/G2/G3 (arcs)." />
+
+    <style>
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+    </style>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "GCode Diff 3D",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Web Browser",
+        "url": "https://nyarurato.github.io/GcodeDiff/",
+        "description": "Browser-based GCode comparison tool that visualizes differences in 3D. Supports G0/G1/G2/G3 (arcs) and runs without a server."
+      }
+    </script>
 
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
+    <h1 class="sr-only">GCode Diff 3D</h1>
+    <p class="sr-only">Compare two GCode files and inspect differences in a 3D toolpath view. Works in the browser with support for G0, G1, G2, and G3 commands.</p>
+
     <canvas id="canvas"></canvas>
 
     <!-- GitHub リンク -->

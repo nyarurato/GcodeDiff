@@ -65,10 +65,18 @@ function makeGrid(dark: boolean): THREE.GridHelper {
 // ─── SceneManager ─────────────────────────────────────────────────────────
 
 export class SceneManager {
+  private readonly canvas: HTMLCanvasElement
   private readonly renderer: THREE.WebGLRenderer
   private readonly scene: THREE.Scene
   private readonly camera: THREE.PerspectiveCamera
   private readonly controls: OrbitControls
+
+  private readonly viewCubeScene = new THREE.Scene()
+  private readonly viewCubeCamera = new THREE.PerspectiveCamera(36, 1, 0.1, 20)
+  private readonly viewCube = new THREE.Mesh()
+  private viewCubeMaterials: THREE.MeshBasicMaterial[] = []
+  private readonly raycaster = new THREE.Raycaster()
+  private readonly ndc = new THREE.Vector2()
 
   private readonly groupA = new THREE.Group()
   private readonly groupB = new THREE.Group()
@@ -84,7 +92,13 @@ export class SceneManager {
   private markerSize: number = 2
   private markerColor: number = 0xffffff
 
+  private readonly viewCubeSizePx = 96
+  private readonly viewCubeMarginRightPx = 16
+  private readonly viewCubeMarginTopPx = 60
+  private hoveredFaces = new Set<number>()
+
   constructor(canvas: HTMLCanvasElement) {
+    this.canvas = canvas
     // ── レンダラー
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
@@ -126,7 +140,13 @@ export class SceneManager {
     this.controls.maxDistance = 20000
     this.controls.screenSpacePanning = true
 
+    // ── ViewCube
+    this.setupViewCube()
+
     window.addEventListener('resize', this.onResize)
+    this.canvas.addEventListener('pointermove', this.onPointerMove)
+    this.canvas.addEventListener('pointerleave', this.onPointerLeave)
+    this.canvas.addEventListener('pointerdown', this.onPointerDown)
     this.animate()
   }
 
@@ -140,13 +160,244 @@ export class SceneManager {
       const dist = this.camera.position.distanceTo(this.cursorMarker.position)
       this.cursorMarker.scale.setScalar(Math.max(0.2, dist * this.markerSize * 0.004))
     }
+
+    // 毎フレーム先頭でメイン描画用の viewport/scissor 状態に戻す。
+    this.renderer.setScissorTest(false)
+    this.renderer.setViewport(0, 0, window.innerWidth, window.innerHeight)
+    this.updateViewCubeHighlight()
+    this.syncViewCubeOrientation()
     this.renderer.render(this.scene, this.camera)
+    this.renderViewCubeOverlay()
   }
 
   private readonly onResize = (): void => {
     this.camera.aspect = window.innerWidth / window.innerHeight
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(window.innerWidth, window.innerHeight)
+  }
+
+  private readonly onPointerDown = (ev: PointerEvent): void => {
+    const dir = this.pickViewCubeDirectionFromPointer(ev)
+    if (!dir) return
+    this.applyCameraDirection(dir)
+  }
+
+  private readonly onPointerMove = (ev: PointerEvent): void => {
+    const dir = this.pickViewCubeDirectionFromPointer(ev)
+    this.hoveredFaces = dir ? this.faceIndicesFromDirection(dir) : new Set<number>()
+    this.updateViewCubeHighlight()
+  }
+
+  private readonly onPointerLeave = (): void => {
+    if (this.hoveredFaces.size === 0) return
+    this.hoveredFaces.clear()
+    this.updateViewCubeHighlight()
+  }
+
+  private pickViewCubeDirectionFromPointer(ev: PointerEvent): THREE.Vector3 | null {
+    const rect = this.canvas.getBoundingClientRect()
+    const x = ev.clientX - rect.left
+    const y = ev.clientY - rect.top
+    const viewport = this.getViewCubeViewport(rect.width, rect.height)
+
+    const inCube =
+      x >= viewport.left
+      && x <= viewport.left + viewport.size
+      && y >= viewport.top
+      && y <= viewport.top + viewport.size
+    if (!inCube) return null
+
+    this.ndc.set(
+      ((x - viewport.left) / viewport.size) * 2 - 1,
+      -(((y - viewport.top) / viewport.size) * 2 - 1),
+    )
+    this.raycaster.setFromCamera(this.ndc, this.viewCubeCamera)
+    const hit = this.raycaster.intersectObject(this.viewCube, false)[0]
+    if (!hit || hit.face?.materialIndex === undefined) return null
+
+    return this.directionFromHit(hit)
+  }
+
+  private setupViewCube(): void {
+    this.viewCubeCamera.position.set(0, 0, 4)
+    this.viewCubeCamera.lookAt(0, 0, 0)
+
+    const mat = (hex: number, label: string): THREE.MeshBasicMaterial => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 256
+      canvas.height = 256
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.fillStyle = `#${hex.toString(16).padStart(6, '0')}`
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)'
+        ctx.lineWidth = 8
+        ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8)
+        ctx.fillStyle = '#0e1118'
+        ctx.font = '700 54px Segoe UI'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(label, canvas.width / 2, canvas.height / 2)
+      }
+      const tex = new THREE.CanvasTexture(canvas)
+      tex.colorSpace = THREE.SRGBColorSpace
+      return new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        opacity: 0.95,
+      })
+    }
+    const materials = [
+      mat(0xff8a80, 'RIGHT'), // +X right
+      mat(0x82b1ff, 'LEFT'),  // -X left
+      mat(0x69f0ae, 'TOP'),   // +Y top
+      mat(0xffe082, 'BOTTOM'),// -Y bottom
+      mat(0xb388ff, 'FRONT'), // +Z front
+      mat(0x80deea, 'BACK'),  // -Z back
+    ]
+    this.viewCubeMaterials = materials
+
+    this.viewCube.geometry = new THREE.BoxGeometry(1.8, 1.8, 1.8)
+    this.viewCube.material = materials
+    this.viewCubeScene.add(this.viewCube)
+
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(this.viewCube.geometry),
+      new THREE.LineBasicMaterial({ color: 0x101318 }),
+    )
+    this.viewCube.add(edges)
+
+    const backdrop = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.2, 3.2),
+      new THREE.MeshBasicMaterial({
+        color: 0x0b0d12,
+        transparent: true,
+        opacity: 0.28,
+        depthTest: false,
+      }),
+    )
+    backdrop.position.z = -1.2
+    this.viewCubeScene.add(backdrop)
+  }
+
+  private syncViewCubeOrientation(): void {
+    this.viewCube.quaternion.copy(this.camera.quaternion).invert()
+  }
+
+  private renderViewCubeOverlay(): void {
+    const viewport = this.getViewCubeViewport(window.innerWidth, window.innerHeight)
+    const yFromBottom = window.innerHeight - (viewport.top + viewport.size)
+    const prevAutoClear = this.renderer.autoClear
+
+    this.renderer.autoClear = false
+    this.renderer.clearDepth()
+    this.renderer.setScissorTest(true)
+    this.renderer.setViewport(viewport.left, yFromBottom, viewport.size, viewport.size)
+    this.renderer.setScissor(viewport.left, yFromBottom, viewport.size, viewport.size)
+    this.renderer.render(this.viewCubeScene, this.viewCubeCamera)
+
+    // オーバーレイ描画で変更したレンダラー状態を必ず復元する。
+    this.renderer.setScissorTest(false)
+    this.renderer.setViewport(0, 0, window.innerWidth, window.innerHeight)
+    this.renderer.setScissor(0, 0, window.innerWidth, window.innerHeight)
+    this.renderer.autoClear = prevAutoClear
+  }
+
+  private getViewCubeViewport(w: number, h: number): { left: number; top: number; size: number } {
+    const size = this.viewCubeSizePx
+    const left = Math.max(0, w - size - this.viewCubeMarginRightPx)
+    const top = this.viewCubeMarginTopPx
+    return { left, top: Math.min(top, Math.max(0, h - size)), size }
+  }
+
+  private directionFromFaceIndex(faceIndex: number): THREE.Vector3 {
+    switch (faceIndex) {
+      case 0: return new THREE.Vector3(1, 0, 0)
+      case 1: return new THREE.Vector3(-1, 0, 0)
+      case 2: return new THREE.Vector3(0, 1, 0)
+      case 3: return new THREE.Vector3(0, -1, 0)
+      case 4: return new THREE.Vector3(0, 0, 1)
+      case 5: return new THREE.Vector3(0, 0, -1)
+      default: return new THREE.Vector3(1, 0, 0)
+    }
+  }
+
+  private directionFromHit(hit: THREE.Intersection<THREE.Object3D>): THREE.Vector3 {
+    const faceIndex = hit.face?.materialIndex
+    if (faceIndex === undefined) return new THREE.Vector3(1, 0, 0)
+
+    const base = this.directionFromFaceIndex(faceIndex)
+    const local = this.viewCube.worldToLocal(hit.point.clone())
+    const half = 0.9 // BoxGeometry(1.8)
+    const nx = THREE.MathUtils.clamp(local.x / half, -1, 1)
+    const ny = THREE.MathUtils.clamp(local.y / half, -1, 1)
+    const nz = THREE.MathUtils.clamp(local.z / half, -1, 1)
+
+    const ax = Math.abs(nx)
+    const ay = Math.abs(ny)
+    const az = Math.abs(nz)
+    const maxA = Math.max(ax, ay, az)
+    const edgeThreshold = 0.18
+    const dominance = 0.52
+
+    const dir = new THREE.Vector3(0, 0, 0)
+    if (ax > dominance && maxA - ax <= edgeThreshold) dir.x = Math.sign(nx)
+    if (ay > dominance && maxA - ay <= edgeThreshold) dir.y = Math.sign(ny)
+    if (az > dominance && maxA - az <= edgeThreshold) dir.z = Math.sign(nz)
+
+    if (dir.lengthSq() === 0) return base
+    return dir.normalize()
+  }
+
+  private faceIndicesFromDirection(dir: THREE.Vector3): Set<number> {
+    const faces = new Set<number>()
+    const eps = 0.2
+    if (dir.x > eps) faces.add(0)
+    if (dir.x < -eps) faces.add(1)
+    if (dir.y > eps) faces.add(2)
+    if (dir.y < -eps) faces.add(3)
+    if (dir.z > eps) faces.add(4)
+    if (dir.z < -eps) faces.add(5)
+    return faces
+  }
+
+  private updateViewCubeHighlight(): void {
+    const hasHover = this.hoveredFaces.size > 0
+    for (let i = 0; i < this.viewCubeMaterials.length; i++) {
+      const m = this.viewCubeMaterials[i]
+      const highlighted = this.hoveredFaces.has(i)
+      if (highlighted) {
+        m.opacity = 1
+        m.color.setHex(0xfff7cc)
+      } else if (hasHover) {
+        // ホバー中は非対象面を暗くして判定面を強調する
+        m.opacity = 0.42
+        m.color.setHex(0x606674)
+      } else {
+        m.opacity = 0.95
+        m.color.setHex(0xffffff)
+      }
+      m.needsUpdate = true
+    }
+  }
+
+  private applyCameraDirection(dir: THREE.Vector3): void {
+    const target = this.controls.target.clone()
+    const distance = Math.max(1, this.camera.position.distanceTo(target))
+    const unitDir = dir.clone().normalize()
+
+    // 極点(真上/真下)では OrbitControls のドラッグ方向が反転しやすいため、
+    // up ベクトルは常に Y 軸固定のまま微小オフセットで特異点を回避する。
+    if (Math.abs(unitDir.y) > 0.95) {
+      unitDir.z += unitDir.y > 0 ? -0.001 : 0.001
+      unitDir.normalize()
+    }
+
+    const nextPos = target.clone().add(unitDir.multiplyScalar(distance))
+    this.camera.up.set(0, 1, 0)
+    this.camera.position.copy(nextPos)
+    this.camera.lookAt(target)
+    this.controls.update()
   }
 
   // ── 公開 API ─────────────────────────────────────────────────────────
@@ -288,6 +539,9 @@ export class SceneManager {
   dispose(): void {
     cancelAnimationFrame(this.animId)
     window.removeEventListener('resize', this.onResize)
+    this.canvas.removeEventListener('pointermove', this.onPointerMove)
+    this.canvas.removeEventListener('pointerleave', this.onPointerLeave)
+    this.canvas.removeEventListener('pointerdown', this.onPointerDown)
     this.controls.dispose()
     this.renderer.dispose()
   }
