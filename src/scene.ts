@@ -1,5 +1,8 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js'
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
 import type { ClassifiedSegment, DiffStatus } from './diffEngine'
 
 // ─── カラー設定 ────────────────────────────────────────────────────────────
@@ -28,14 +31,20 @@ function gToT(x: number, y: number, z: number): THREE.Vector3 {
   return new THREE.Vector3(x, z, -y)
 }
 
-/** ClassifiedSegment 配列から色付き LineSegments を生成 */
+/**
+ * ClassifiedSegment 配列から色付きファットライン (LineSegments2) を生成。
+ * Rapid (G0) は細く、かつ depthTest=false で常に最前面に描画する。
+ *
+ * @param widthPx   線幅 (px)。Rapid は細くするため呼び出し側で小さくする。
+ * @param onTop     true の場合 depthTest を無効化し最前面に描画 (G0 用)。
+ */
 function buildLineSegments(
   segments: ClassifiedSegment[],
   cfg: ColorConfig,
-  commonColorOverride?: number,
-): THREE.LineSegments {
+  opts: { widthPx: number; onTop?: boolean; commonColorOverride?: number },
+): LineSegments2 {
   const colorMap: Record<DiffStatus, number> = {
-    common:   commonColorOverride ?? cfg.common,
+    common:   opts.commonColorOverride ?? cfg.common,
     'only-a': cfg.onlyA,
     'only-b': cfg.onlyB,
   }
@@ -51,10 +60,23 @@ function buildLineSegments(
     colors.push(col.r, col.g, col.b, col.r, col.g, col.b)
   }
 
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-  geo.setAttribute('color',    new THREE.Float32BufferAttribute(colors, 3))
-  return new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ vertexColors: true }))
+  const geo = new LineSegmentsGeometry()
+  geo.setPositions(positions)
+  geo.setColors(colors)
+
+  const mat = new LineMaterial({
+    vertexColors: true,
+    worldUnits: false,
+    linewidth: opts.widthPx,
+    depthTest: !opts.onTop,
+    transparent: !!opts.onTop,
+  })
+  mat.resolution.set(window.innerWidth, window.innerHeight)
+
+  const line = new LineSegments2(geo, mat)
+  line.computeLineDistances()
+  line.renderOrder = opts.onTop ? 10 : 0
+  return line
 }
 
 function makeGrid(dark: boolean): THREE.GridHelper {
@@ -93,6 +115,7 @@ export class SceneManager {
   private showA = true
   private showB = true
   private showCommon = true
+  private showRapid = true
 
   private animId = 0
   private cursorMarker: THREE.Object3D | null = null
@@ -114,6 +137,10 @@ export class SceneManager {
   private readonly viewCubeMarginRightPx = 16
   private readonly viewCubeMarginTopPx = 60
   private hoveredFaces = new Set<number>()
+
+  // 線幅 (px)。Rapid (G0) は細くして常に最前面に描画する。
+  private readonly normalWidthPx = 2
+  private readonly rapidWidthPx = 1
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
@@ -195,6 +222,22 @@ export class SceneManager {
     this.camera.aspect = window.innerWidth / window.innerHeight
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(window.innerWidth, window.innerHeight)
+    // ファットラインの線幅を正しく保つため解像度を同期
+    this.syncLineMaterialResolution()
+  }
+
+  private syncLineMaterialResolution(): void {
+    const sync = (group: THREE.Group): void => {
+      group.traverse((obj) => {
+        const ls = obj as unknown as LineSegments2
+        if (ls.isLineSegments2 && ls.material instanceof LineMaterial) {
+          ls.material.resolution.set(window.innerWidth, window.innerHeight)
+        }
+      })
+    }
+    sync(this.groupA)
+    sync(this.groupB)
+    sync(this.groupCommon)
   }
 
   private readonly onPointerDown = (ev: PointerEvent): void => {
@@ -462,6 +505,12 @@ export class SceneManager {
     this.refresh()
   }
 
+  /** G0 Rapid Move の表示/非表示 */
+  setVisibleRapid(visible: boolean): void {
+    this.showRapid = visible
+    this.refresh()
+  }
+
   /**
    * 表示設定 (showA / showB / showCommon) と lastA/lastB から各グループを再構築。
    *
@@ -624,19 +673,37 @@ export class SceneManager {
     commonColorOverride?: number,
   ): void {
     this.clearGroup(group)
-    if (segments.length > 0) {
-      group.add(buildLineSegments(segments, this.colors, commonColorOverride))
+    if (segments.length === 0) return
+
+    // Rapid (G0) は細くし常に最前面へ、それ以外は通常幅で描画。
+    // showRapid=false のときは Rapid 線を描画しない。
+    const rapids = this.showRapid ? segments.filter((s) => s.segment.isRapid) : []
+    const others = segments.filter((s) => !s.segment.isRapid)
+
+    if (others.length > 0) {
+      group.add(buildLineSegments(others, this.colors, {
+        widthPx: this.normalWidthPx,
+        commonColorOverride,
+      }))
+    }
+    if (rapids.length > 0) {
+      group.add(buildLineSegments(rapids, this.colors, {
+        widthPx: this.rapidWidthPx,
+        onTop: true,
+        commonColorOverride,
+      }))
     }
   }
 
   private clearGroup(group: THREE.Group): void {
     group.traverse((obj) => {
-      if (obj instanceof THREE.LineSegments) {
-        obj.geometry.dispose()
-        if (Array.isArray(obj.material)) {
-          obj.material.forEach((m) => m.dispose())
+      const ls = obj as THREE.Object3D as unknown as LineSegments2
+      if (ls.isLineSegments2) {
+        ls.geometry.dispose()
+        if (Array.isArray(ls.material)) {
+          ls.material.forEach((m) => m.dispose())
         } else {
-          obj.material.dispose()
+          ls.material.dispose()
         }
       }
     })

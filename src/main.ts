@@ -187,6 +187,7 @@ function bindToggle(id: string, onChange: (checked: boolean) => void): void {
 bindToggle('toggle-a', (checked) => { scene.setVisibleA(checked) })
 bindToggle('toggle-b', (checked) => { scene.setVisibleB(checked) })
 bindToggle('toggle-common', (checked) => { scene.setVisibleCommon(checked) })
+bindToggle('toggle-rapid', (checked) => { scene.setVisibleRapid(checked) })
 
 // ─── Settings: Color Pickers ──────────────────────────────────────────────
 
