@@ -186,6 +186,7 @@ function bindToggle(id: string, onChange: (checked: boolean) => void): void {
 
 bindToggle('toggle-a', (checked) => { scene.setVisibleA(checked) })
 bindToggle('toggle-b', (checked) => { scene.setVisibleB(checked) })
+bindToggle('toggle-common', (checked) => { scene.setVisibleCommon(checked) })
 
 // ─── Settings: Color Pickers ──────────────────────────────────────────────
 
@@ -268,3 +269,38 @@ const markerSizeInput = getById<HTMLInputElement>('marker-size')
 markerSizeInput?.addEventListener('input', () => {
   scene.setMarkerConfig(Number(markerSizeInput.value))
 })
+
+// ─── Playback Banner ──────────────────────────────────────────────────
+
+const playA = getById<HTMLButtonElement>('play-a')
+const playB = getById<HTMLButtonElement>('play-b')
+const pauseBtn = getById<HTMLButtonElement>('pause')
+const stopBtn = getById<HTMLButtonElement>('stop')
+const playStatus = getById<HTMLElement>('play-status')
+const playSpeedInput = getById<HTMLInputElement>('play-speed')
+
+playA?.addEventListener('click', () => { scene.play('A') })
+playB?.addEventListener('click', () => { scene.play('B') })
+pauseBtn?.addEventListener('click', () => { scene.pause() })
+stopBtn?.addEventListener('click', () => { scene.stop() })
+
+playSpeedInput?.addEventListener('input', () => {
+  scene.setPlaySpeed(Number(playSpeedInput.value))
+})
+scene.setPlaySpeed(Number(playSpeedInput?.value ?? 20))
+
+/** シーンの再生状態に合わせてバナーUIを同期 */
+function syncPlaybackUI(state: { side: 'A' | 'B' | null; paused: boolean }): void {
+  const { side, paused } = state
+  if (playA) playA.disabled = side === 'B'
+  if (playB) playB.disabled = side === 'A'
+  if (pauseBtn) pauseBtn.disabled = side === null
+  if (stopBtn) stopBtn.disabled = side === null
+
+  let label = 'Stopped'
+  if (side) label = `${side} ${paused ? 'Paused' : 'Playing'}`
+  if (playStatus) playStatus.textContent = label
+}
+
+scene.onPlaybackStateChange = syncPlaybackUI
+syncPlaybackUI({ side: null, paused: false })

@@ -32,9 +32,10 @@ function gToT(x: number, y: number, z: number): THREE.Vector3 {
 function buildLineSegments(
   segments: ClassifiedSegment[],
   cfg: ColorConfig,
+  commonColorOverride?: number,
 ): THREE.LineSegments {
   const colorMap: Record<DiffStatus, number> = {
-    common:   cfg.common,
+    common:   commonColorOverride ?? cfg.common,
     'only-a': cfg.onlyA,
     'only-b': cfg.onlyB,
   }
@@ -80,6 +81,7 @@ export class SceneManager {
 
   private readonly groupA = new THREE.Group()
   private readonly groupB = new THREE.Group()
+  private readonly groupCommon = new THREE.Group()
   private grid: THREE.GridHelper
 
   // 現在のカラー設定と最後に描画したセグメント（色変更時の再描画用）
@@ -87,8 +89,24 @@ export class SceneManager {
   private lastA: ClassifiedSegment[] = []
   private lastB: ClassifiedSegment[] = []
 
+  // 表示設定：A/B グループの表示と、Common セグメントの表示
+  private showA = true
+  private showB = true
+  private showCommon = true
+
   private animId = 0
   private cursorMarker: THREE.Object3D | null = null
+
+  // 再生状態：A/B どちらを再生中か、一時停止中か、進捗など
+  private playSide: 'A' | 'B' | null = null
+  private playIndex = 0
+  private playAccum = 0          // 現在セグメント内の進行度 (0..1)
+  private playSpeed = 20         // 秒あたりセグメント数
+  private playPaused = false
+  private playLastTime = 0
+
+  /** 再生状態が変化したときに呼ばれるコールバック（UI 同期用） */
+  onPlaybackStateChange: ((state: { side: 'A' | 'B' | null; paused: boolean }) => void) | null = null
   private markerSize: number = 2
   private markerColor: number = 0xffffff
 
@@ -124,6 +142,7 @@ export class SceneManager {
 
     this.scene.add(this.groupA)
     this.scene.add(this.groupB)
+    this.scene.add(this.groupCommon)
 
     // ── カメラ
     this.camera = new THREE.PerspectiveCamera(
@@ -155,6 +174,8 @@ export class SceneManager {
   private readonly animate = (): void => {
     this.animId = requestAnimationFrame(this.animate)
     this.controls.update()
+    // 再生進行（A か B のどちらか一方のみ）
+    this.advancePlayback()
     // カーソルマーカーをカメラ距離に比例したサイズに更新
     if (this.cursorMarker) {
       const dist = this.camera.position.distanceTo(this.cursorMarker.position)
@@ -404,31 +425,65 @@ export class SceneManager {
 
   updateA(segments: ClassifiedSegment[]): void {
     this.lastA = segments
-    this.renderGroup(this.groupA, segments)
+    this.refresh()
     if (segments.length > 0) this.fitView()
   }
 
   updateB(segments: ClassifiedSegment[]): void {
     this.lastB = segments
-    this.renderGroup(this.groupB, segments)
+    this.refresh()
     if (segments.length > 0) this.fitView()
   }
 
   clearAll(): void {
+    this.stop()
     this.lastA = []
     this.lastB = []
     this.clearGroup(this.groupA)
     this.clearGroup(this.groupB)
+    this.clearGroup(this.groupCommon)
   }
 
   /** A グループの表示/非表示 */
   setVisibleA(visible: boolean): void {
-    this.groupA.visible = visible
+    this.showA = visible
+    this.refresh()
   }
 
   /** B グループの表示/非表示 */
   setVisibleB(visible: boolean): void {
-    this.groupB.visible = visible
+    this.showB = visible
+    this.refresh()
+  }
+
+  /** Common 表示の ON/OFF。OFF 時は common セグメントを A/B に色分けして描画。 */
+  setVisibleCommon(visible: boolean): void {
+    this.showCommon = visible
+    this.refresh()
+  }
+
+  /**
+   * 表示設定 (showA / showB / showCommon) と lastA/lastB から各グループを再構築。
+   *
+   * - Common ON : common 線は groupCommon にまとめて描画（共通 ON なら A/B が
+   *   OFF でも表示される）。only-a/only-b は各グループに表示。
+   * - Common OFF: common 線を A/B 各グループにのみ-a/のみ-b 色で描画（パスは維持）。
+   */
+  private refresh(): void {
+    if (this.showCommon) {
+      // common は専用グループ、only-* は各グループに分割
+      this.renderGroup(this.groupCommon, this.lastA.filter((s) => s.status === 'common'))
+      this.renderGroup(this.groupA, this.lastA.filter((s) => s.status === 'only-a'))
+      this.renderGroup(this.groupB, this.lastB.filter((s) => s.status === 'only-b'))
+    } else {
+      // common は A/B にのみ色で描画（groupCommon は空）
+      this.renderGroup(this.groupCommon, [])
+      this.renderGroup(this.groupA, this.lastA, this.colors.onlyA)
+      this.renderGroup(this.groupB, this.lastB, this.colors.onlyB)
+    }
+    this.groupA.visible = this.showA
+    this.groupB.visible = this.showB
+    this.groupCommon.visible = this.showCommon
   }
 
   /**
@@ -470,11 +525,80 @@ export class SceneManager {
     }
   }
 
+  // ── 再生制御 ───────────────────────────────────────────────────────
+
+  /** 再生速度を「秒あたりセグメント数」で設定 */
+  setPlaySpeed(segmentsPerSecond: number): void {
+    this.playSpeed = Math.max(0.1, segmentsPerSecond)
+  }
+
+  /** 指定側の再生を開始（相手側が再生中なら無視） */
+  play(side: 'A' | 'B'): void {
+    if (this.playSide !== null && this.playSide !== side) return
+    const segs = side === 'A' ? this.lastA : this.lastB
+    if (segs.length === 0) return
+    if (this.playSide !== side) {
+      this.playSide = side
+      this.playIndex = 0
+      this.playAccum = 0
+    }
+    this.playPaused = false
+    this.playLastTime = performance.now()
+    this.emitPlaybackState()
+  }
+
+  /** 一時停止（再生中のみ有効） */
+  pause(): void {
+    if (this.playSide === null) return
+    this.playPaused = true
+    this.emitPlaybackState()
+  }
+
+  /** 停止：再生を終了しマーカーを消す */
+  stop(): void {
+    this.playSide = null
+    this.playPaused = false
+    this.playIndex = 0
+    this.playAccum = 0
+    this.showCursorMarker(null)
+    this.emitPlaybackState()
+  }
+
+  private emitPlaybackState(): void {
+    this.onPlaybackStateChange?.({ side: this.playSide, paused: this.playPaused })
+  }
+
+  /** 毎フレーム呼ばれ、進行中の再生を進める */
+  private advancePlayback(): void {
+    if (this.playSide === null || this.playPaused) return
+
+    const segs = this.playSide === 'A' ? this.lastA : this.lastB
+    if (segs.length === 0) { this.stop(); return }
+
+    const now = performance.now()
+    const dt = Math.min(0.1, (now - this.playLastTime) / 1000)
+    this.playLastTime = now
+
+    this.playAccum += dt * this.playSpeed
+    while (this.playAccum >= 1) {
+      this.playAccum -= 1
+      this.playIndex++
+      if (this.playIndex >= segs.length) {
+        // 最後まで再生したら停止
+        this.stop()
+        return
+      }
+    }
+
+    // 現在のセグメントを使ってマーカーを表示（終点をたどる）
+    const seg = segs[this.playIndex]
+    this.showCursorMarker(seg.segment.to)
+  }
+
   /** 凡例カラーを部分更新して即再描画 */
   setColors(partial: Partial<ColorConfig>): void {
     this.colors = { ...this.colors, ...partial }
-    this.renderGroup(this.groupA, this.lastA)
-    this.renderGroup(this.groupB, this.lastB)
+    this.refresh()
   }
 
   /** ダーク/ライトテーマ切替（背景・フォグ・グリッドを更新） */
@@ -494,10 +618,14 @@ export class SceneManager {
 
   // ── 内部ユーティリティ ────────────────────────────────────────────────
 
-  private renderGroup(group: THREE.Group, segments: ClassifiedSegment[]): void {
+  private renderGroup(
+    group: THREE.Group,
+    segments: ClassifiedSegment[],
+    commonColorOverride?: number,
+  ): void {
     this.clearGroup(group)
     if (segments.length > 0) {
-      group.add(buildLineSegments(segments, this.colors))
+      group.add(buildLineSegments(segments, this.colors, commonColorOverride))
     }
   }
 
@@ -517,7 +645,7 @@ export class SceneManager {
 
   private fitView(): void {
     const box = new THREE.Box3()
-    ;[this.groupA, this.groupB].forEach((g) => {
+    ;[this.groupA, this.groupB, this.groupCommon].forEach((g) => {
       if (g.children.length > 0) box.expandByObject(g)
     })
     if (box.isEmpty()) {

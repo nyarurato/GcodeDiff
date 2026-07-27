@@ -141,6 +141,13 @@
               <span class="toggle-slider toggle-slider-b"></span>
             </label>
           </div>
+          <div class="setting-row">
+            <label class="setting-label" for="toggle-common">Common</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-common" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
           <div class="setting-divider"></div>
           <div class="setting-group-title">Legend Colors</div>
           <div class="setting-row">
@@ -190,6 +197,17 @@
     <!-- ステータスバー -->
     <div id="statusbar">
       <span id="status-text">Paste GCode into A and/or B, then click Plot</span>
+    </div>
+
+    <!-- 再生バナー -->
+    <div id="playback-bar">
+      <button class="play-btn" id="play-a" title="Play A">▶ A</button>
+      <button class="play-btn" id="play-b" title="Play B">▶ B</button>
+      <button class="play-btn" id="pause" title="Pause" disabled>⏸</button>
+      <button class="play-btn" id="stop" title="Stop" disabled>⏹</button>
+      <label class="play-speed-label" for="play-speed">Speed</label>
+      <input type="range" class="play-speed" id="play-speed" min="1" max="300" step="1" value="20">
+      <span class="play-status" id="play-status">Stopped</span>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

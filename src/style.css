@@ -486,3 +486,71 @@ textarea:focus {
 [data-theme='light'] #legend {
   background: rgba(240, 242, 250, 0.92);
 }
+
+/* ─── Playback banner ───────────────────────────────── */
+#playback-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 38px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 30px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+  color: var(--text);
+}
+
+.play-btn {
+  font: inherit;
+  font-size: 13px;
+  min-width: 38px;
+  padding: 6px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.play-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.play-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+#play-a { border-color: var(--color-a); color: var(--color-a); }
+#play-b { border-color: var(--color-b); color: var(--color-b); }
+
+.play-speed-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+
+.play-speed {
+  accent-color: var(--color-common);
+  cursor: pointer;
+  width: 110px;
+}
+
+.play-status {
+  font-size: 12px;
+  color: var(--text-dim);
+  min-width: 78px;
+  text-align: right;
+}
+
+[data-theme='light'] #playback-bar {
+  background: rgba(240, 242, 250, 0.92);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
