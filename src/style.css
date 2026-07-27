@@ -415,6 +415,11 @@ textarea:focus {
   background: var(--color-b);
 }
 
+/* Common トグルを緑 (凡例カラー) に */
+#toggle-common:checked + .toggle-slider-common {
+  background: var(--color-common);
+}
+
 .toggle-switch input:checked + .toggle-slider::before {
   transform: translateX(16px);
 }
