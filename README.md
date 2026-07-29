@@ -1,5 +1,7 @@
 # GCode Diff 3D
 
+![GCode Diff 3D icon](public/icon.png)
+
 A web app that visualizes the diff between two GCode files in 3D space.
 
 ## Demo
